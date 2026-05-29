@@ -22,7 +22,7 @@ function buildDeployEmbed(type, payload) {
   const author = deployment?.meta?.githubCommitAuthorName ?? deployment?.meta?.gitlabCommitAuthorName ?? null;
 
   const fields = [
-    { name: 'Project', value: project?.name ?? 'Unknown', inline: true },
+    { name: 'Project', value: deployment?.name ?? project?.name ?? 'Unknown', inline: true },
     { name: 'Environment', value: deployment?.target ?? 'preview', inline: true },
   ];
 
