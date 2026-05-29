@@ -1,17 +1,19 @@
+const ALERT_TYPES = new Set(['deployment.error', 'deployment.cancelled']);
+
 const DEPLOY_COLORS = {
   'deployment.succeeded': 0x57f287,
-  'deployment.error': 0xed4245,
+  'deployment.error':     0xed4245,
   'deployment.cancelled': 0xfee75c,
-  'deployment.created': 0x5865f2,
-  'deployment.promoted': 0x57f287,
+  'deployment.created':   0x5865f2,
+  'deployment.promoted':  0x57f287,
 };
 
 const DEPLOY_TITLES = {
   'deployment.succeeded': '✅ Deployment Succeeded',
-  'deployment.error': '❌ Deployment Failed',
+  'deployment.error':     '❌ Deployment Failed',
   'deployment.cancelled': '⚠️ Deployment Cancelled',
-  'deployment.created': '🚀 Deployment Started',
-  'deployment.promoted': '🎉 Promoted to Production',
+  'deployment.created':   '🚀 Deployment Started',
+  'deployment.promoted':  '🎉 Promoted to Production',
 };
 
 function buildDeployEmbed(type, payload) {
@@ -22,14 +24,13 @@ function buildDeployEmbed(type, payload) {
   const author = deployment?.meta?.githubCommitAuthorName ?? deployment?.meta?.gitlabCommitAuthorName ?? null;
 
   const fields = [
-    { name: 'Project', value: deployment?.name ?? project?.name ?? 'Unknown', inline: true },
+    { name: 'Project',     value: deployment?.name ?? project?.name ?? 'Unknown', inline: true },
     { name: 'Environment', value: deployment?.target ?? 'preview', inline: true },
   ];
-
   if (branch) fields.push({ name: 'Branch', value: branch, inline: true });
   if (commit) fields.push({ name: 'Commit', value: commit.slice(0, 72), inline: false });
   if (author) fields.push({ name: 'Author', value: author, inline: true });
-  if (url) fields.push({ name: 'URL', value: url, inline: false });
+  if (url)    fields.push({ name: 'URL',    value: url, inline: false });
 
   return {
     title: DEPLOY_TITLES[type] ?? type,
@@ -41,28 +42,23 @@ function buildDeployEmbed(type, payload) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { type, payload } = req.body ?? {};
+  if (!type) return res.status(400).json({ error: 'Missing event type' });
 
-  if (!type) {
-    return res.status(400).json({ error: 'Missing event type' });
-  }
-
-  let webhookUrl;
-  let embed;
-
-  if (type.startsWith('deployment.')) {
-    webhookUrl = process.env.DISCORD_DEPLOYMENTS_WEBHOOK;
-    embed = buildDeployEmbed(type, payload);
-  }
-
-  if (!webhookUrl) {
+  if (!type.startsWith('deployment.')) {
     return res.status(200).json({ ok: true, skipped: true });
   }
 
+  const isAlert = ALERT_TYPES.has(type);
+  const webhookUrl = isAlert
+    ? process.env.DISCORD_DEPLOYMENT_ALERTS_WEBHOOK
+    : process.env.DISCORD_DEPLOYMENT_EVENTS_WEBHOOK;
+
+  if (!webhookUrl) return res.status(200).json({ ok: true, skipped: true });
+
+  const embed = buildDeployEmbed(type, payload);
   const discordRes = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

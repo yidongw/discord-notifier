@@ -17,10 +17,10 @@ function buildErrorEmbed(entry) {
     title: '🔴 Runtime Error',
     color: 0xed4245,
     fields: [
-      { name: 'Project', value: entry.projectId ?? 'Unknown', inline: true },
+      { name: 'Project',     value: entry.projectId ?? 'Unknown', inline: true },
       { name: 'Environment', value: entry.environment ?? 'Unknown', inline: true },
-      { name: 'Region', value: entry.region ?? 'Unknown', inline: true },
-      { name: 'Message', value: (entry.message ?? '').slice(0, 1024) || '(no message)', inline: false },
+      { name: 'Region',      value: entry.region ?? 'Unknown', inline: true },
+      { name: 'Message',     value: (entry.message ?? '').slice(0, 1024) || '(no message)', inline: false },
       entry.path ? { name: 'Path', value: entry.path, inline: false } : null,
     ].filter(Boolean),
     timestamp: entry.timestamp ? new Date(entry.timestamp).toISOString() : new Date().toISOString(),
@@ -29,9 +29,7 @@ function buildErrorEmbed(entry) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
   const entries = parseNdjson(raw);
@@ -40,18 +38,12 @@ export default async function handler(req, res) {
     (e) => e.level === 'error' || e.type === 'error' || /error|exception|fatal/i.test(e.message ?? ''),
   );
 
-  if (errors.length === 0) {
-    return res.status(200).json({ ok: true, skipped: true });
-  }
+  if (errors.length === 0) return res.status(200).json({ ok: true, skipped: true });
 
-  const webhookUrl = process.env.DISCORD_ERRORS_WEBHOOK;
-  if (!webhookUrl) {
-    return res.status(500).json({ error: 'DISCORD_ERRORS_WEBHOOK not configured' });
-  }
+  const webhookUrl = process.env.DISCORD_DEPLOYMENT_ALERTS_WEBHOOK;
+  if (!webhookUrl) return res.status(500).json({ error: 'DISCORD_DEPLOYMENT_ALERTS_WEBHOOK not configured' });
 
-  // Batch into one Discord message (max 10 embeds per request)
   const embeds = errors.slice(0, 10).map(buildErrorEmbed);
-
   const discordRes = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

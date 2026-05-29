@@ -1,21 +1,9 @@
 // Receives GitHub Actions migration run results and forwards to Discord.
-// Called by supabase-envs.yml on success and failure.
+// success → #migration-events, failure → #migration-alerts
 
-const COLORS = {
-  success: 0x57f287,
-  failure: 0xed4245,
-};
-
-const TITLES = {
-  success: '✅ Migration Succeeded',
-  failure: '❌ Migration Failed',
-};
-
-const ENV_LABELS = {
-  dev: '🔵 Dev',
-  staging: '🟡 Staging',
-  prod: '🔴 Prod',
-};
+const COLORS = { success: 0x57f287, failure: 0xed4245 };
+const TITLES = { success: '✅ Migration Succeeded', failure: '❌ Migration Failed' };
+const ENV_LABELS = { dev: '🔵 Dev', staging: '🟡 Staging', prod: '🔴 Prod' };
 
 function buildEmbed({ env, status, branch, run_url, repo }) {
   return {
@@ -23,8 +11,8 @@ function buildEmbed({ env, status, branch, run_url, repo }) {
     color: COLORS[status] ?? 0x000000,
     fields: [
       { name: 'Environment', value: ENV_LABELS[env] ?? env, inline: true },
-      { name: 'Branch', value: branch, inline: true },
-      { name: 'Repo', value: repo ?? 'Unknown', inline: true },
+      { name: 'Branch',      value: branch, inline: true },
+      { name: 'Repo',        value: repo ?? 'Unknown', inline: true },
       run_url ? { name: 'Run', value: run_url, inline: false } : null,
     ].filter(Boolean),
     timestamp: new Date().toISOString(),
@@ -33,29 +21,22 @@ function buildEmbed({ env, status, branch, run_url, repo }) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { env, status, branch, run_url, repo } = req.body ?? {};
+  if (!env || !status) return res.status(400).json({ error: 'Missing env or status' });
 
-  if (!env || !status) {
-    return res.status(400).json({ error: 'Missing env or status' });
-  }
+  const isAlert = status === 'failure';
+  const webhookUrl = isAlert
+    ? process.env.DISCORD_MIGRATION_ALERTS_WEBHOOK
+    : process.env.DISCORD_MIGRATION_EVENTS_WEBHOOK;
 
-  const webhookUrl = process.env.DISCORD_MIGRATIONS_WEBHOOK
-    ?? process.env.DISCORD_DEPLOYMENTS_WEBHOOK;
-
-  if (!webhookUrl) {
-    return res.status(500).json({ error: 'No Discord webhook configured' });
-  }
-
-  const embed = buildEmbed({ env, status, branch, run_url, repo });
+  if (!webhookUrl) return res.status(500).json({ error: 'No Discord webhook configured' });
 
   const discordRes = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ embeds: [embed] }),
+    body: JSON.stringify({ embeds: [buildEmbed({ env, status, branch, run_url, repo })] }),
   });
 
   if (!discordRes.ok) {
