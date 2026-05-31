@@ -1,7 +1,11 @@
 {
   "functions": {
-    "api/webhook.js": { "memory": 128 },
-    "api/logdrain.js": { "memory": 128 },
-    "api/migrations.js": { "memory": 128 }
-  }
+    "api/webhook.js":     { "memory": 128 },
+    "api/logdrain.js":    { "memory": 128 },
+    "api/migrations.js":  { "memory": 128 },
+    "api/healthcheck.js": { "memory": 128, "maxDuration": 30 }
+  },
+  "crons": [
+    { "path": "/api/healthcheck", "schedule": "*/5 * * * *" }
+  ]
 }
